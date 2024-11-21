@@ -136,9 +136,16 @@ module PositionalEmbeddings
     - Array with second half negated along specified dimension
     """
     function neg_half(x::AbstractArray{T}, dim::Int=1) where T
-        d_2 = size(x, dim) ÷ 2
-        vcat(-view(x, d_2+1:size(x,dim), :, :),
-            view(x, 1:d_2, :, :))
+        # Get even and odd indices
+        even_indices = 1:2:size(x, dim)
+        odd_indices = 2:2:size(x, dim)
+
+        # Use views for even and odd elements
+        x_even = view(x, even_indices, :, :)
+        x_odd = view(x, odd_indices, :, :)
+
+        # Combine using vcat in the correct order: [-odd; even]
+        vcat(-x_odd, x_even)
     end
 
     """

@@ -1,11 +1,10 @@
 name = "PositionalEmbeddings"
 uuid = "d504d84d-5e64-4f13-be9b-c14c41279bd1"
 authors = ["Mateusz Kaduk <mateusz.kaduk@gmail.com> and contributors"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 Functors = "d9f16b24-f501-4c13-a1f2-28368ffc5196"
-Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
 CUDA = "5.5.2"
@@ -14,8 +13,9 @@ Zygote = "0.6.41"
 julia = "1.9"
 
 [extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "CUDA"]
+test = ["Test", "CUDA", "Zygote"]
