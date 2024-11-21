@@ -100,3 +100,25 @@ end
         @info "CUDA GPU not available or not working, skipping GPU tests"
     end
 end
+@testset "AbsolutePE" begin
+    @testset "specific output values" begin
+        features, seq_len, batch_size = 128, 100, 64
+        x = Float32.(reshape(collect(1:features*seq_len*batch_size),
+                           features, seq_len, batch_size)) ./
+            (features*seq_len*batch_size)
+
+        pe = AbsolutePE(features, seq_len)
+        output = pe(permutedims(x, (2,1,3)))
+
+        expected = Float32[
+            1.2207f-6   1.0        3.66211f-6   1.0       6.10352f-6;
+            0.841628    0.540461   0.76188      0.648067  0.681724;
+            0.909611   -0.415832   0.987362    -0.160119  0.997799;
+            0.14159    -0.989521   0.517778    -0.855327  0.778747;
+            -0.756176   -0.653016  -0.316087    -0.947891  0.14217
+        ]
+
+        @test size(output) == (seq_len, features, batch_size)
+        @test output[1:5, 1:5, 1] ≈ expected rtol=1e-5
+    end
+end

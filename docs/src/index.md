@@ -10,6 +10,7 @@ This package provides various implementations of positional embeddings - techniq
 
 Currently implemented:
 - Rotary Position Embeddings (RoPE) - A method that encodes positions by rotating vectors in 2D subspaces
+- Frequency Positional Embeddings (FrequencyPE) - The original positional encoding scheme from "Attention Is All You Need"
 
 ## API Reference
 
@@ -30,6 +31,17 @@ rope = RoPE(512, 1024)
 # Apply to any feature tensor of shape (features, sequence_length, batch)
 features = randn(Float32, 512, 100, 32)
 features_with_pos = rope(features)
+```
+
+### Basic FrequencyPE Usage
+
+```julia
+# Create embeddings for 512-dimensional features up to length 1024
+pe = FrequencyPE(512, 1024)
+
+# Apply to input tensor of shape (features, seq_len, batch)
+x = randn(Float32, 512, 100, 32)
+x_positioned = pe(x)
 ```
 
 ### Example with Query/Key Matrices
@@ -76,8 +88,8 @@ k = rmha.rope(k)
 bias = nothing
 mask = nothing
 x, α = dot_product_attention(q, k, v, bias;
-                           nheads=mha.nheads, 
-                           mask=mask, 
+                           nheads=mha.nheads,
+                           mask=mask,
                            fdrop=mha.attn_drop)
 
 # 4. Project output
@@ -115,17 +127,17 @@ function RoPEMultiHeadAttention(args...;
                              kwargs...)
     # Create base MultiHeadAttention
     mha = MultiHeadAttention(args...; kwargs...)
-    
+
     # Calculate number of features to rotate based on fraction
     d = size(mha.out_proj.weight, 1)
     features_to_rotate = floor(Int, d * rope_fraction)
-    
+
     # Ensure feature count is valid
     @assert features_to_rotate % 8 == 0 "Number of features to rotate should be multiple of 8 for optimal performance, got $features_to_rotate. Adjust rope_fraction accordingly."
-    
+
     # Create RoPE layer
     rope = RoPE(features_to_rotate, max_seq_len; scale=rope_scale, T=T)
-    
+
     RoPEMultiHeadAttention(mha, rope, T(rope_fraction))
 end
 
@@ -135,20 +147,20 @@ Flux.trainable(rmha::RoPEMultiHeadAttention) = (; mha=rmha.mha)
 # Forward pass for separate q, k, v
 function (rmha::RoPEMultiHeadAttention)(q_in::A3, k_in::A3, v_in::A3, bias=nothing; mask=nothing)
     mha = rmha.mha
-    
+
     # Project inputs
     q = mha.q_proj(q_in)
     k = mha.k_proj(k_in)
     v = mha.v_proj(v_in)
-    
+
     # Apply RoPE
     q = rmha.rope(q)
     k = rmha.rope(k)
-    
+
     # Compute attention
     x, α = NNlib.dot_product_attention(q, k, v, bias;
                                      mha.nheads, mask, fdrop=mha.attn_drop)
-    
+
     # Project output
     return mha.out_proj(x), α
 end

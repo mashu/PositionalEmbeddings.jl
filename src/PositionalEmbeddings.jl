@@ -1,6 +1,6 @@
 module PositionalEmbeddings
     using Functors
-    export RoPE
+    export RoPE, AbsolutePE
 
     """
         compute_frequencies(dim::Int, seq_len::Int, base::Number=10_000)
@@ -21,7 +21,43 @@ module PositionalEmbeddings
         return θ * positions'
     end
 
-        """
+    """
+        AbsolutePE{T<:AbstractArray}
+
+    Absolute Position Embeddings using sinusoidal frequencies from "Attention Is All You Need" paper.
+    Formula: PE(pos,2i) = sin(pos/10000^(2i/d_model))
+            PE(pos,2i+1) = cos(pos/10000^(2i/d_model))
+
+    # Fields
+    - `embedding_size::Int`: Size of the embedding dimension (d_model)
+    - `max_length::Int`: Maximum sequence length supported
+    - `embeddings::T`: Pre-computed positional embeddings
+    """
+    struct AbsolutePE{T<:AbstractArray}
+        embedding_size::Int
+        max_length::Int
+        embeddings::T
+    end
+    Functors.@functor AbsolutePE
+
+    function AbsolutePE(embedding_size::Int, max_length::Int; base::Number=10_000)
+        freqs = compute_frequencies(embedding_size, max_length, base)
+        embeddings = zeros(Float32, embedding_size, max_length)
+        embeddings[1:2:end, :] .= sin.(freqs)
+        embeddings[2:2:end, :] .= cos.(freqs)
+        AbsolutePE(embedding_size, max_length, embeddings)
+    end
+
+    function (layer::AbsolutePE)(x::AbstractArray)
+        seq_len, channels, batch_size = size(x)
+        @assert channels == layer.embedding_size "Channel dimension must match embedding size"
+        @assert seq_len <= layer.max_length "Sequence length exceeds maximum length"
+        pos_embeddings = view(layer.embeddings, :, 1:seq_len)
+        embeddings_broadcast = reshape(permutedims(pos_embeddings, (2, 1)), seq_len, channels, 1)
+        return x .+ embeddings_broadcast
+    end
+
+    """
         RoPE{T, A<:AbstractArray{T}}
 
     Rotary Position Embeddings (RoPE) implementation as described in the paper
