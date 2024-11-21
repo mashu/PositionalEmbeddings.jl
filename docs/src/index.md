@@ -36,13 +36,14 @@ features_with_pos = rope(features)
 ### Basic FrequencyPE Usage
 
 ```julia
-# Create embeddings for 512-dimensional features up to length 1024
-pe = FrequencyPE(512, 1024)
+# Create embeddings for 128-dimensional features up to length 100
+pe = FrequencyPE(128, 100)
 
 # Apply to input tensor of shape (features, seq_len, batch)
-x = randn(Float32, 512, 100, 32)
+x = randn(Float32, 128, 100, 32)
 x_positioned = pe(x)
 ```
+![AbsolutePE](assets/AbsolutePE-128-100.svg)
 
 ### Example with Query/Key Matrices
 
