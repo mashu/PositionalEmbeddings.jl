@@ -127,6 +127,8 @@ module PositionalEmbeddings
         neg_half(x::AbstractArray{T}, dim::Int=1) where T
 
     Helper function that negates the second half of the array along dimension `dim`.
+    This implementatio uses half negative array instead of interleaving pairs, as in LlaMA
+    https://github.com/huggingface/transformers/issues/25199
 
     # Arguments
     - `x::AbstractArray{T}`: Input array
@@ -136,16 +138,9 @@ module PositionalEmbeddings
     - Array with second half negated along specified dimension
     """
     function neg_half(x::AbstractArray{T}, dim::Int=1) where T
-        # Get even and odd indices
-        even_indices = 1:2:size(x, dim)
-        odd_indices = 2:2:size(x, dim)
-
-        # Use views for even and odd elements
-        x_even = view(x, even_indices, :, :)
-        x_odd = view(x, odd_indices, :, :)
-
-        # Combine using vcat in the correct order: [-odd; even]
-        vcat(-x_odd, x_even)
+        d_2 = size(x, dim) ÷ 2
+        vcat(-view(x, d_2+1:size(x,dim), :, :),
+            view(x, 1:d_2, :, :))
     end
 
     """
