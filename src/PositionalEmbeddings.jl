@@ -139,8 +139,8 @@ module PositionalEmbeddings
     """
     function neg_half(x::AbstractArray{T}, dim::Int=1) where T
         d_2 = size(x, dim) ÷ 2
-        vcat(-view(x, d_2+1:size(x,dim), :, :),
-            view(x, 1:d_2, :, :))
+        return vcat(view(x, d_2+1:size(x,dim), :, :) .* -1,
+                   view(x, 1:d_2, :, :))
     end
 
     """
