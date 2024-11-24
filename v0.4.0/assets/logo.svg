@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 150">
+  <!-- Background -->
+  <rect width="450" height="150" fill="#fff"/>
+  
+  <!-- Base sequence line -->
+  <line x1="75" y1="75" x2="375" y2="75" stroke="#9558B2" stroke-width="6"/>
+  
+  <!-- Position-enriched elements -->
+  <circle cx="125" cy="75" r="12" fill="#389826" opacity="0.2"/>
+  <circle cx="125" cy="75" r="9" fill="#389826" opacity="0.4"/>
+  <circle cx="125" cy="75" r="6" fill="#389826" opacity="0.7"/>
+  <circle cx="125" cy="75" r="4" fill="#389826"/>
+  
+  <circle cx="225" cy="75" r="12" fill="#9558B2" opacity="0.2"/>
+  <circle cx="225" cy="75" r="9" fill="#9558B2" opacity="0.4"/>
+  <circle cx="225" cy="75" r="6" fill="#9558B2" opacity="0.7"/>
+  <circle cx="225" cy="75" r="4" fill="#9558B2"/>
+  
+  <circle cx="325" cy="75" r="12" fill="#CB3C33" opacity="0.2"/>
+  <circle cx="325" cy="75" r="9" fill="#CB3C33" opacity="0.4"/>
+  <circle cx="325" cy="75" r="6" fill="#CB3C33" opacity="0.7"/>
+  <circle cx="325" cy="75" r="4" fill="#CB3C33"/>
+  
+  <!-- Positional waves -->
+  <path d="M 75,95 Q 150,115 225,95 T 375,95" fill="none" stroke="#389826" stroke-width="2" opacity="0.5"/>
+  <path d="M 75,105 Q 150,125 225,105 T 375,105" fill="none" stroke="#9558B2" stroke-width="2" opacity="0.5"/>
+  <path d="M 75,115 Q 150,135 225,115 T 375,115" fill="none" stroke="#CB3C33" stroke-width="2" opacity="0.5"/>
+</svg>
