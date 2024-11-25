@@ -58,7 +58,6 @@ function (layer::AbsolutePE)(x::AbstractArray)
 end
 
 """
-    RoPE{T, A<:AbstractArray{T}}
     RoPE(features::Int, seq_len::Int;
         base::Number=10_000,
         scale::Number=1.0,
@@ -84,7 +83,7 @@ Q = randn(Float32, 512, 100, 32)
 Q_positioned = rope(x)
 ```
 """
-struct RoPE{T, A<:AbstractArray{T}}
+struct RoPE{T<:AbstractFloat, A<:AbstractArray{T}}
     features::Int
     cos_cached::A
     sin_cached::A
@@ -111,26 +110,27 @@ function RoPE(features::Int, seq_len::Int;
 end
 
 """
-    neg_half(x::AbstractArray{T}, dim::Int=1) where T
+    neg_half(x::AbstractArray, dim::Int=1)
 
 Helper function that negates the second half of the array along dimension `dim`.
 This implementatio uses half negative array instead of interleaving pairs, as in LlaMA
 https://github.com/huggingface/transformers/issues/25199
 
 # Arguments
-- `x::AbstractArray{T}`: Input array
+- `x::AbstractArray`: Input array
 - `dim::Int=1`: Dimension along which to perform the operati    on
 
 # Returns
 - Array with second half negated along specified dimension
 """
-function neg_half(x::AbstractArray{T}, dim::Int=1) where T
+function neg_half(x::AbstractArray, dim::Int=1)
     d_2 = size(x, dim) ÷ 2
     return vcat(view(x, d_2+1:size(x,dim), :, :) .* -1,
                 view(x, 1:d_2, :, :))
 end
 
-function (rope::RoPE)(x::AbstractArray{T}) where T
+function (rope::RoPE)(x::AbstractArray)
+    @assert size(x, 1) <= rope.features
     features_to_rotate = min(rope.features, size(x, 1))
 
     x_rope = view(x, 1:features_to_rotate, :, :)
