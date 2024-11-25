@@ -59,24 +59,29 @@ end
 
 """
     RoPE{T, A<:AbstractArray{T}}
+    RoPE(features::Int, seq_len::Int;
+        base::Number=10_000,
+        scale::Number=1.0,
+        T::Type=Float32)
 
 Rotary Position Embeddings (RoPE) implementation as described in the paper
 "RoFormer: Enhanced Transformer with Rotary Position Embedding".
 
-# Fields
-- `features::Int`: Number of features to apply rotation to
-- `cos_cached::A`: Cached cosine values for rotation
-- `sin_cached::A`: Cached sine values for rotation
-- `scale::T`: Scaling factor for the rotations
+Construct a RoPE object with the following arguments:
+- `features::Int`: Number of features to apply rotation to (must be multiple of 8)
+- `seq_len::Int`: Maximum sequence length to support
+- `base::Number=10_000`: Base for geometric progression of frequencies
+- `scale::Number=1.0`: Scaling factor for the rotations
+- `T::Type=Float32`: Data type for the embeddings
 
-# Example
-```julia
+# Examples
+```jldoctest
 # Create RoPE for a model with 512 features and max sequence length of 1024
 rope = RoPE(512, 1024)
 
 # Apply RoPE to input tensor of shape (features, seq_len, batch)
-x = randn(Float32, 512, 100, 32)
-x_positioned = rope(x)
+Q = randn(Float32, 512, 100, 32)
+Q_positioned = rope(x)
 ```
 """
 struct RoPE{T, A<:AbstractArray{T}}
@@ -87,24 +92,6 @@ struct RoPE{T, A<:AbstractArray{T}}
 end
 Functors.@functor RoPE
 
-"""
-    RoPE(features::Int, seq_len::Int;
-        base::Number=10_000,
-        scale::Number=1.0,
-        T::Type=Float32)
-
-Construct a RoPE object.
-
-# Arguments
-- `features::Int`: Number of features to apply rotation to
-- `seq_len::Int`: Maximum sequence length to support
-- `base::Number=10_000`: Base for geometric progression of frequencies
-- `scale::Number=1.0`: Scaling factor for the rotations
-- `T::Type=Float32`: Data type for the embeddings
-
-# Throws
-- `AssertionError`: If features is not a multiple of 8
-"""
 function RoPE(features::Int, seq_len::Int;
             base::Number=10_000,
             scale::Number=1.0,
@@ -143,21 +130,6 @@ function neg_half(x::AbstractArray{T}, dim::Int=1) where T
                 view(x, 1:d_2, :, :))
 end
 
-"""
-    (rope::RoPE)(x::AbstractArray{T}) where T
-
-Apply rotary position embeddings to input tensor.
-
-# Arguments
-- `x::AbstractArray{T}`: Input tensor of shape (features, seq_len, batch)
-
-# Returns
-- Tensor of same shape as input with position information encoded
-
-# Note
-Only applies rotation to the first `features` dimensions of the input,
-passing through any additional dimensions unchanged.
-"""
 function (rope::RoPE)(x::AbstractArray{T}) where T
     features_to_rotate = min(rope.features, size(x, 1))
 
