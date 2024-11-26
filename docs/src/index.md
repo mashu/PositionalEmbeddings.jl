@@ -25,11 +25,11 @@ Modules = [PositionalEmbeddings]
 RoPE encodes positional information by applying rotations to feature vectors:
 
 ```julia
-# Create RoPE for features of dimension 512 and maximum sequence length of 1024
+# Create RoPE for head_dim of dimension 512 and maximum sequence length of 1024
 rope = RoPE(512, 1024)
 
-# Apply to any feature tensor of shape (features, sequence_length, batch)
-features = randn(Float32, 512, 100, 32)
+# Apply to any feature tensor of shape (head_dim, n_heads,sequence_length, batch)
+features = randn(Float32, 512, 2, 100, 32)
 features_with_pos = rope(features)
 ```
 
@@ -96,9 +96,7 @@ function (rmha::RoPEMultiHeadAttention)(q_in::A3, k_in::A3, v_in::A3, bias=nothi
     k = mha.k_proj(k_in)
     v = mha.v_proj(v_in)
 
-    # Apply RoPE
-    q = rmha.rope(q)
-    k = rmha.rope(k)
+    # Apply RoPE to Q and K (TODO)
 
     # Compute attention
     x, α = NNlib.dot_product_attention(q, k, v, bias;
