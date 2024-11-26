@@ -30,7 +30,7 @@ end
 # input_original = torch.arange(1, 16*10 + 1, dtype=torch.float32).reshape(16, 10, 1)
 # x = input_original.permute(1, 2, 0).unsqueeze(1)  # [10, 1, 1, 16]
 
-# # Split features
+# # Split head_dim
 # d_2 = d // 2
 # x_rope, x_pass = x[..., :d], x[..., d:]
 
@@ -54,8 +54,8 @@ end
 
 @testset "RoPE Tests" begin
     @testset "Cached Values Test" begin
-        features, seq_len = 16, 10
-        rope = RoPE(features, seq_len)
+        head_dim, seq_len = 16, 10
+        rope = RoPE(head_dim, seq_len)
 
         expected_cos = reshape([
             1.0 0.540302 -0.416147 -0.989992 -0.653644 0.283662 0.96017 0.753902 -0.1455 -0.91113;
@@ -74,7 +74,7 @@ end
             1.0 0.999995 0.99998 0.999955 0.99992 0.999875 0.99982 0.999755 0.99968 0.999595;
             1.0 1.0 0.999998 0.999996 0.999992 0.999987 0.999982 0.999976 0.999968 0.99996;
             1.0 1.0 1.0 1.0 0.999999 0.999999 0.999998 0.999998 0.999997 0.999996
-        ], (16,10,1))
+        ], (16,1,10,1))
 
         expected_sin = reshape([
             0.0 0.841471 0.909297 0.14112 -0.756802 -0.958924 -0.279415 0.656987 0.989358 0.412118;
@@ -93,14 +93,14 @@ end
             0.0 0.00316227 0.00632451 0.00948669 0.0126488 0.0158107 0.0189725 0.0221341 0.0252955 0.0284567;
             0.0 0.001 0.002 0.003 0.00399999 0.00499998 0.00599996 0.00699994 0.00799991 0.00899988;
             0.0 0.000316228 0.000632456 0.000948683 0.00126491 0.00158114 0.00189737 0.00221359 0.00252982 0.00284605
-        ], (16,10,1))
+        ], (16,1,10,1))
 
         @test isapprox(rope.cos_cached, expected_cos)
         @test isapprox(rope.sin_cached, expected_sin)
     end
 
     @testset "neg_half Function Test" begin
-        x = x = reshape([
+        x = reshape([
             1.0    2.0    3.0    4.0    5.0    6.0    7.0    8.0    9.0   10.0;
            11.0   12.0   13.0   14.0   15.0   16.0   17.0   18.0   19.0   20.0;
            21.0   22.0   23.0   24.0   25.0   26.0   27.0   28.0   29.0   30.0;
@@ -117,7 +117,7 @@ end
           131.0  132.0  133.0  134.0  135.0  136.0  137.0  138.0  139.0  140.0;
           141.0  142.0  143.0  144.0  145.0  146.0  147.0  148.0  149.0  150.0;
           151.0  152.0  153.0  154.0  155.0  156.0  157.0  158.0  159.0  160.0
-         ], (16,10,1))
+         ], (16,1,10,1))
 
         expected_neg_half = reshape([
             -81.0   -82.0   -83.0   -84.0   -85.0   -86.0   -87.0   -88.0   -89.0   -90.0;
@@ -136,19 +136,21 @@ end
             51.0    52.0    53.0    54.0    55.0    56.0    57.0    58.0    59.0    60.0;
             61.0    62.0    63.0    64.0    65.0    66.0    67.0    68.0    69.0    70.0;
             71.0    72.0    73.0    74.0    75.0    76.0    77.0    78.0    79.0    80.0
-        ], (16,10,1))
+        ], (16,1,10,1))
 
         @test isapprox(PositionalEmbeddings.neg_half(x), expected_neg_half)
     end
 
     @testset "Forward Pass Test" begin
-        x = reshape(Float32.(1:160), (16,10,1))
+        x = permutedims(reshape(Float32.(1:160), (16, 10, 1))[:,:,:,:],(1, 3, 2, 4))
         pe = RoPE(16, 10)
 
         # Manual calculation
         neg_half_x = PositionalEmbeddings.neg_half(x)
-        cos_mat = view(pe.cos_cached, 1:size(x,1), 1:size(x,2), :)
-        sin_mat = view(pe.sin_cached, 1:size(x,1), 1:size(x,2), :)
+        seq_len = size(x, 3)
+        head_dim = size(x, 1)
+        cos_mat = view(pe.cos_cached, 1:head_dim, 1:1, 1:seq_len, :)
+        sin_mat = view(pe.sin_cached, 1:head_dim, 1:1, 1:seq_len, :)
         expected_output = @. muladd(x * pe.scale, cos_mat, neg_half_x * pe.scale * sin_mat)
 
         # Test the forward pass
@@ -159,7 +161,7 @@ end
     @testset "Gradient Tests (CPU, Float64)" begin
         eps = 1e-8
         rope = RoPE(8, 4; T=Float64)
-        x = randn(8, 4, 1)
+        x = randn(8, 1, 4, 1)
         x_orig = copy(x)
 
         loss(x) = sum(abs2, rope(x))
@@ -184,23 +186,23 @@ end
             @testset "Gradient Computation (GPU, Float32)" begin
                 rope_gpu = RoPE(8, 4; T=Float32)
                 rope_gpu = RoPE(
-                    rope_gpu.features,
+                    rope_gpu.head_dim,
                     cu(rope_gpu.cos_cached),
                     cu(rope_gpu.sin_cached),
                     rope_gpu.scale
                 )
-                x = CUDA.randn(Float32, 8, 4, 1)
+                x = CUDA.randn(Float32, 8, 1, 4, 1)
 
                 loss(x) = sum(abs2, rope_gpu(x))
                 @test_nowarn gradient(loss, x)
             end
 
             @testset "Forward Pass (GPU)" begin
-                x = reshape(Float32.(1:160), (16,10,1))
+                x = reshape(Float32.(1:160), (16, 1, 10,1))
                 x_gpu = cu(x)
                 pe = RoPE(16, 10)
                 pe_gpu = RoPE(
-                    pe.features,
+                    pe.head_dim,
                     cu(pe.cos_cached),
                     cu(pe.sin_cached),
                     pe.scale
@@ -217,12 +219,12 @@ end
 end
 @testset "AbsolutePE" begin
     @testset "specific output values" begin
-        features, seq_len, batch_size = 128, 100, 64
-        x = Float32.(reshape(collect(1:features*seq_len*batch_size),
-                           features, seq_len, batch_size)) ./
-            (features*seq_len*batch_size)
+        head_dim, seq_len, batch_size = 128, 100, 64
+        x = Float32.(reshape(collect(1:head_dim*seq_len*batch_size),
+                           head_dim, seq_len, batch_size)) ./
+            (head_dim*seq_len*batch_size)
 
-        pe = AbsolutePE(features, seq_len)
+        pe = AbsolutePE(head_dim, seq_len)
         output = pe(permutedims(x, (2,1,3)))
 
         expected = Float32[
@@ -233,7 +235,7 @@ end
             -0.756176   -0.653016  -0.316087    -0.947891  0.14217
         ]
 
-        @test size(output) == (seq_len, features, batch_size)
+        @test size(output) == (seq_len, head_dim, batch_size)
         @test output[1:5, 1:5, 1] ≈ expected rtol=1e-5
     end
 end

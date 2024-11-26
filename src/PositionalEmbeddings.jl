@@ -84,29 +84,29 @@ Q_positioned = rope(x)
 ```
 """
 struct RoPE{T<:AbstractFloat, A<:AbstractArray{T}}
-    features::Int
+    head_dim::Int
     cos_cached::A
     sin_cached::A
     scale::T
 end
 Functors.@functor RoPE
 
-function RoPE(features::Int, seq_len::Int;
-            base::Number=10_000,
-            scale::Number=1.0,
-            T::Type=Float32)
+function RoPE(head_dim::Int, seq_len::Int;
+    base::Number=10_000,
+    scale::Number=1.0,
+    T::Type=Float32)
 
-    @assert features % 8 == 0 "Number of features should be multiple of 8 for optimal performance, got $features"
+    @assert head_dim % 8 == 0 "Head dimension should be multiple of 8 for optimal performance, got $head_dim"
 
-    freqs = T.(compute_frequencies(features, seq_len, base))
+    freqs = T.(compute_frequencies(head_dim, seq_len, base))
     freqs_extended = vcat(freqs, freqs)
 
     cos_cached = cos.(freqs_extended)
     sin_cached = sin.(freqs_extended)
-    cos_cached = reshape(cos_cached, size(cos_cached,1), size(cos_cached,2), 1)
-    sin_cached = reshape(sin_cached, size(sin_cached,1), size(sin_cached,2), 1)
+    cos_cached = reshape(cos_cached, size(cos_cached, 1), 1, size(cos_cached, 2), 1)
+    sin_cached = reshape(sin_cached, size(sin_cached, 1), 1, size(sin_cached, 2), 1)
 
-    RoPE(features, cos_cached, sin_cached, T(scale))
+    RoPE(head_dim, cos_cached, sin_cached, T(scale))
 end
 
 """
@@ -123,26 +123,25 @@ https://github.com/huggingface/transformers/issues/25199
 # Returns
 - Array with second half negated along specified dimension
 """
-function neg_half(x::AbstractArray, dim::Int=1)
-    d_2 = size(x, dim) ÷ 2
-    return vcat(view(x, d_2+1:size(x,dim), :, :) .* -1,
-                view(x, 1:d_2, :, :))
+function neg_half(x::AbstractArray)
+    head_dim = size(x, 1)
+    d_2 = head_dim ÷ 2
+    return vcat(view(x, d_2+1:head_dim, :, :, :) .* -1,
+                view(x, 1:d_2, :, :, :))
 end
 
 function (rope::RoPE)(x::AbstractArray)
-    @assert size(x, 1) <= rope.features
-    features_to_rotate = min(rope.features, size(x, 1))
+    head_dim = size(x, 1)
+    seq_len = size(x, 3)
+    @assert head_dim == rope.head_dim "Head dimension must match, expected $(rope.head_dim), got $head_dim"
+    @assert ndims(x) == 4 "Input must be 4D (head_dim, n_heads, seq_len, batch)"
 
-    x_rope = view(x, 1:features_to_rotate, :, :)
-    x_pass = view(x, features_to_rotate+1:size(x,1), :, :)
+    x_neg = neg_half(x)
+    cos_mat = view(rope.cos_cached, 1:head_dim, :, 1:seq_len, :)
+    sin_mat = view(rope.sin_cached, 1:head_dim, :, 1:seq_len, :)
 
-    x_neg = neg_half(x_rope)
-    cos_mat = view(rope.cos_cached, 1:size(x_rope,1), 1:size(x_rope,2), :)
-    sin_mat = view(rope.sin_cached, 1:size(x_rope,1), 1:size(x_rope,2), :)
-
-    x_rotated = @. muladd(x_rope * rope.scale, cos_mat, x_neg * rope.scale * sin_mat)
-
-    return vcat(x_rotated, x_pass)
+    x_rotated = @. muladd(x * rope.scale, cos_mat, x_neg * rope.scale * sin_mat)
+    return x_rotated
 end
 
 end
