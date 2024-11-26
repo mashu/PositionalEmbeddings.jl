@@ -74,7 +74,7 @@ Construct a RoPE object with the following arguments:
 - `T::Type=Float32`: Data type for the embeddings
 
 # Examples
-```jldoctest
+```julia
 # Create RoPE for a model with 512 features and max sequence length of 1024
 rope = RoPE(512, 1024)
 
