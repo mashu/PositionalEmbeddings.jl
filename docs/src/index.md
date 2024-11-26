@@ -72,7 +72,8 @@ function RoPEMultiHeadAttention(args...;
     mha = MultiHeadAttention(args...; kwargs...)
 
     # Calculate number of features to rotate based on fraction
-    d = size(mha.out_proj.weight, 1)
+    input_dim = size(mha.out_proj.weight, 1)
+    d = input_dim ÷ mha.nheads
     features_to_rotate = floor(Int, d * rope_fraction)
 
     # Ensure feature count is valid
@@ -87,6 +88,9 @@ end
 # Only make MHA parameters trainable, not RoPE
 Flux.trainable(rmha::RoPEMultiHeadAttention) = (; mha=rmha.mha)
 
+split_heads(x, nheads) = reshape(x, size(x, 1) ÷ nheads, nheads, size(x)[2:end]...)
+join_heads(x) = reshape(x, :, size(x)[3:end]..
+
 # Forward pass for separate q, k, v
 function (rmha::RoPEMultiHeadAttention)(q_in::A3, k_in::A3, v_in::A3, bias=nothing; mask=nothing)
     mha = rmha.mha
@@ -96,10 +100,12 @@ function (rmha::RoPEMultiHeadAttention)(q_in::A3, k_in::A3, v_in::A3, bias=nothi
     k = mha.k_proj(k_in)
     v = mha.v_proj(v_in)
 
-    # Apply RoPE to Q and K (TODO)
+    # Apply RoPE to Q and K
+    q_rot = join_heads(rmha.rope(split_heads(q, mha.nheads)))
+    k_rot = join_heads(rmha.rope(split_heads(k, mha.nheads)))
 
     # Compute attention
-    x, α = NNlib.dot_product_attention(q, k, v, bias;
+    x, α = NNlib.dot_product_attention(q_rot, k_rot, v, bias;
                                      mha.nheads, mask, fdrop=mha.attn_drop)
 
     # Project output
