@@ -70,7 +70,7 @@ Construct a RoPE object with the following arguments:
 - `features::Int`: Number of features to apply rotation to (must be multiple of 8)
 - `seq_len::Int`: Maximum sequence length to support
 - `base::Number=10_000`: Base for geometric progression of frequencies
-- `scale::Number=1.0`: Scaling factor for the rotations
+- `scale::Number=1.0`: Scaling factor for the frequencies
 - `T::Type=Float32`: Data type for the embeddings
 
 # Examples
@@ -87,7 +87,6 @@ struct RoPE{T<:AbstractFloat, A<:AbstractArray{T}}
     head_dim::Int
     cos_cached::A
     sin_cached::A
-    scale::T
 end
 Functors.@functor RoPE
 
@@ -98,13 +97,12 @@ function RoPE(head_dim::Int, seq_len::Int;
 
     @assert head_dim % 2 == 0 "Head dimension should be multiple of 2, got $head_dim"
 
-    freqs = T.(compute_frequencies(head_dim, seq_len, base))
+    freqs = T.(compute_frequencies(head_dim, seq_len, base) .* scale)
     freqs_extended = vcat(freqs, freqs)
-
     cos_cached = reshape(cos.(freqs_extended), size(freqs_extended, 1), 1, size(freqs_extended, 2), 1)
     sin_cached = reshape(sin.(freqs_extended), size(freqs_extended, 1), 1, size(freqs_extended, 2), 1)
 
-    RoPE(head_dim, cos_cached, sin_cached, T(scale))
+    RoPE(head_dim, cos_cached, sin_cached)
 end
 
 """
@@ -137,7 +135,6 @@ function (rope::RoPE)(x::AbstractArray)
     cos_mat = view(rope.cos_cached, :, :, 1:seq_len, :)
     sin_mat = view(rope.sin_cached, :, :, 1:seq_len, :)
 
-    #x_rotated = @. muladd(x, cos_mat, x_neg * sin_mat)
     x_rotated = @. x * cos_mat + x_neg * sin_mat
     return x_rotated
 end
