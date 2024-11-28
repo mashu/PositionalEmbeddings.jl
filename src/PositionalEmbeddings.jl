@@ -16,7 +16,7 @@ Compute frequency bands for rotary position embeddings.
 - Matrix of shape (dim, seq_len) containing frequency values
 """
 function compute_frequencies(dim::Int, seq_len::Int, base::Number=10_000)
-    θ = 1 ./ (base .^ (collect(0:2:(dim÷2)-1) ./ dim ÷ 2))
+    θ = 1 ./ (base .^ (collect(0:2:dim-1) ./ dim))
     positions = collect(0:seq_len-1)
     return θ * positions'
 end
