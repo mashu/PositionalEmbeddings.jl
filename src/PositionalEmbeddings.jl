@@ -96,15 +96,13 @@ function RoPE(head_dim::Int, seq_len::Int;
     scale::Number=1.0,
     T::Type=Float32)
 
-    @assert head_dim % 8 == 0 "Head dimension should be multiple of 8 for optimal performance, got $head_dim"
+    @assert head_dim % 2 == 0 "Head dimension should be multiple of 2, got $head_dim"
 
     freqs = T.(compute_frequencies(head_dim, seq_len, base))
     freqs_extended = vcat(freqs, freqs)
 
-    cos_cached = cos.(freqs_extended)
-    sin_cached = sin.(freqs_extended)
-    cos_cached = reshape(cos_cached, size(cos_cached, 1), 1, size(cos_cached, 2), 1)
-    sin_cached = reshape(sin_cached, size(sin_cached, 1), 1, size(sin_cached, 2), 1)
+    cos_cached = reshape(cos.(freqs_extended), size(freqs_extended, 1), 1, size(freqs_extended, 2), 1)
+    sin_cached = reshape(sin.(freqs_extended), size(freqs_extended, 1), 1, size(freqs_extended, 2), 1)
 
     RoPE(head_dim, cos_cached, sin_cached, T(scale))
 end
@@ -124,9 +122,8 @@ https://github.com/huggingface/transformers/issues/25199
 - Array with second half negated along specified dimension
 """
 function neg_half(x::AbstractArray)
-    head_dim = size(x, 1)
-    d_2 = head_dim ÷ 2
-    return vcat(view(x, d_2+1:head_dim, :, :, :) .* -1,
+    d_2 = size(x, 1) ÷ 2
+    return vcat(-view(x, d_2+1:size(x, 1), :, :, :),
                 view(x, 1:d_2, :, :, :))
 end
 
@@ -137,8 +134,8 @@ function (rope::RoPE)(x::AbstractArray)
     @assert ndims(x) == 4 "Input must be 4D (head_dim, n_heads, seq_len, batch)"
 
     x_neg = neg_half(x)
-    cos_mat = view(rope.cos_cached, 1:head_dim, :, 1:seq_len, :)
-    sin_mat = view(rope.sin_cached, 1:head_dim, :, 1:seq_len, :)
+    cos_mat = view(rope.cos_cached, :, :, 1:seq_len, :)
+    sin_mat = view(rope.sin_cached, :, :, 1:seq_len, :)
 
     x_rotated = @. muladd(x * rope.scale, cos_mat, x_neg * rope.scale * sin_mat)
     return x_rotated
