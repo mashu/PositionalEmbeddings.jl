@@ -16,7 +16,7 @@ Compute frequency bands for rotary position embeddings.
 - Matrix of shape (dim, seq_len) containing frequency values
 """
 function compute_frequencies(dim::Int, seq_len::Int, base::Number=10_000)
-    θ = 1 ./ (base .^ (collect(0:2:dim-1) ./ dim))
+    θ = 1 ./ (base .^ (collect(0:2:(dim÷2)-1) ./ dim ÷ 2))
     positions = collect(0:seq_len-1)
     return θ * positions'
 end
@@ -137,7 +137,8 @@ function (rope::RoPE)(x::AbstractArray)
     cos_mat = view(rope.cos_cached, :, :, 1:seq_len, :)
     sin_mat = view(rope.sin_cached, :, :, 1:seq_len, :)
 
-    x_rotated = @. muladd(x * rope.scale, cos_mat, x_neg * rope.scale * sin_mat)
+    #x_rotated = @. muladd(x, cos_mat, x_neg * sin_mat)
+    x_rotated = @. x * cos_mat + x_neg * sin_mat
     return x_rotated
 end
 
