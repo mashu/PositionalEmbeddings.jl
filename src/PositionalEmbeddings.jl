@@ -23,6 +23,7 @@ end
 
 """
     AbsolutePE{T<:AbstractArray}
+    AbsolutePE(embedding_size::Int, max_length::Int; base::Number=10_000)
 
 Absolute Position Embeddings using sinusoidal frequencies from "Attention Is All You Need" paper.
 Formula: PE(pos,2i) = sin(pos/10000^(2i/d_model))
@@ -31,7 +32,7 @@ Formula: PE(pos,2i) = sin(pos/10000^(2i/d_model))
 # Fields
 - `embedding_size::Int`: Size of the embedding dimension (d_model)
 - `max_length::Int`: Maximum sequence length supported
-- `embeddings::T`: Pre-computed positional embeddings
+- `embeddings::T`: Positional embeddings
 """
 struct AbsolutePE{T<:AbstractArray}
     embedding_size::Int
@@ -58,51 +59,49 @@ function (layer::AbsolutePE)(x::AbstractArray)
 end
 
 """
-    RoPE(features::Int, seq_len::Int;
+    RoPE(head_size::Int, seq_len::Int;
         base::Number=10_000,
-        scale::Number=1.0,
-        T::Type=Float32)
+        scale::Number=1.0)
 
 Rotary Position Embeddings (RoPE) implementation as described in the paper
 "RoFormer: Enhanced Transformer with Rotary Position Embedding".
 
 Construct a RoPE object with the following arguments:
-- `features::Int`: Number of features to apply rotation to (must be multiple of 8)
+- `head_size::Int`: Head size to apply rotation to (must be multiple of 2)
 - `seq_len::Int`: Maximum sequence length to support
 - `base::Number=10_000`: Base for geometric progression of frequencies
 - `scale::Number=1.0`: Scaling factor for the frequencies
-- `T::Type=Float32`: Data type for the embeddings
 
 # Examples
 ```julia
-# Create RoPE for a model with 512 features and max sequence length of 1024
+# Create RoPE for a model with 512 head size and max sequence length of 1024
 rope = RoPE(512, 1024)
 
-# Apply RoPE to input tensor of shape (features, seq_len, batch)
+# Apply RoPE to input tensor of shape (head_size, seq_len, nheads*batch_size)
 Q = randn(Float32, 512, 100, 32)
 Q_positioned = rope(x)
 ```
 """
 struct RoPE{T<:AbstractFloat, A<:AbstractArray{T}}
-    head_dim::Int
+    head_size::Int
     cos_cached::A
     sin_cached::A
 end
 Functors.@functor RoPE
 
-function RoPE(head_dim::Int, seq_len::Int;
+function RoPE(head_size::Int, seq_len::Int;
     base::Number=10_000,
     scale::Number=1.0,
     T::Type=Float32)
 
-    @assert head_dim % 2 == 0 "Head dimension should be multiple of 2, got $head_dim"
+    @assert head_size % 2 == 0 "Head dimension should be multiple of 2, got $head_size"
 
-    freqs = T.(compute_frequencies(head_dim, seq_len, base) .* scale)
+    # Shape: head_size × seq_len
+    freqs = T.(compute_frequencies(head_size, seq_len, base) .* scale)
     freqs_extended = vcat(freqs, freqs)
-    cos_cached = reshape(cos.(freqs_extended), size(freqs_extended, 1), 1, size(freqs_extended, 2), 1)
-    sin_cached = reshape(sin.(freqs_extended), size(freqs_extended, 1), 1, size(freqs_extended, 2), 1)
-
-    RoPE(head_dim, cos_cached, sin_cached)
+    cos_cached = cos.(freqs_extended)
+    sin_cached = sin.(freqs_extended)
+    RoPE(head_size, cos_cached, sin_cached)
 end
 
 """
@@ -121,21 +120,21 @@ https://github.com/huggingface/transformers/issues/25199
 """
 function neg_half(x::AbstractArray)
     d_2 = size(x, 1) ÷ 2
-    return vcat(-view(x, d_2+1:size(x, 1), :, :, :),
-                view(x, 1:d_2, :, :, :))
+    return vcat(-view(x, d_2+1:size(x, 1), :, :, ),
+                view(x, 1:d_2, :, :, ))
 end
 
 function (rope::RoPE)(x::AbstractArray)
-    head_dim = size(x, 1)
-    seq_len = size(x, 3)
-    @assert head_dim == rope.head_dim "Head dimension must match, expected $(rope.head_dim), got $head_dim"
-    @assert ndims(x) == 4 "Input must be 4D (head_dim, n_heads, seq_len, batch)"
+    head_size, seq_len, combined = size(x)
+    @assert head_size == rope.head_size "Head dimension must match, expected $(rope.head_size), got $head_size"
+    @assert seq_len <= size(rope.cos_cached, 2) "Sequence length exceeds maximum length"
 
+    # Create negated version for rotation
     x_neg = neg_half(x)
-    cos_mat = view(rope.cos_cached, :, :, 1:seq_len, :)
-    sin_mat = view(rope.sin_cached, :, :, 1:seq_len, :)
 
-    x_rotated = @. x * cos_mat + x_neg * sin_mat
+    # Broadcasting will naturally handle the combined dimension
+    x_rotated = @. x * rope.cos_cached + x_neg * rope.sin_cached
+
     return x_rotated
 end
 
