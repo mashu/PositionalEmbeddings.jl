@@ -1,6 +1,8 @@
 module PositionalEmbeddings
 using Functors
+using LinearAlgebra
 export RoPE, AbsolutePE
+export create_causal_mask, create_padding_mask
 
 """
     compute_frequencies(dim::Int, seq_len::Int, base::Number=10_000)
@@ -136,6 +138,93 @@ function (rope::RoPE)(x::AbstractArray)
     x_rotated = @. x * rope.cos_cached + x_neg * rope.sin_cached
 
     return x_rotated
+end
+
+"""
+    create_causal_mask(seq_len::Int)
+
+Create a causal (autoregressive) attention mask that prevents positions from attending to future positions.
+This is commonly used in language models to ensure predictions only depend on previous tokens.
+
+The mask ensures that position i can only attend to positions j ≤ i, creating a triangular pattern
+where the upper triangle including diagonal is masked (True) and the lower triangle is unmasked (False).
+
+# Arguments
+- `seq_len::Int`: Length of the sequence to create mask for
+
+# Returns
+- 3D boolean array of shape (seq_len, seq_len, 1) where True indicates positions to mask
+
+# Examples
+```jldoctest
+julia> mask = create_causal_mask(3)[:,:,1]
+3×3 Matrix{Bool}:
+ 1  1  1  # First position can't attend anything
+ 0  1  1  # Second position can attend to first only
+ 0  0  1  # Third position can attend to first and second
+
+# Used with attention_mask:
+julia> attention_mask(mask)[:,:,1]
+3×3 Matrix{Float64}:
+   -Inf     -Inf    -Inf
+   0.0      -Inf    -Inf
+   0.0      0.0     -Inf
+```
+"""
+function causal_mask(seq_len::Int)
+    return reshape(triu(trues(seq_len, seq_len), 0), seq_len, seq_len, 1)
+end
+
+"""
+    create_padding_mask(lengths::Vector{Int}, max_len::Int)
+
+Create padding masks for batched sequences of varying lengths. This ensures that padded positions
+(positions beyond each sequence's actual length) are masked out and don't participate in attention.
+
+# Arguments
+- `lengths::Vector{Int}`: Actual length of each sequence in the batch
+- `max_len::Int`: Maximum sequence length (padded length)
+
+# Returns
+- 3D boolean array of shape (batch_size, max_len, 1) where True indicates padded positions
+
+# Examples
+```jldoctest
+# For 2 sequences of lengths 2 and 3, padded to length 4:
+julia> mask = create_padding_mask([2, 3], 4)[:,:,1]
+2×4 Matrix{Bool}:
+ 0  0  1  1  # First sequence: length 2, positions 3-4 are padding
+ 0  0  0  1  # Second sequence: length 3, position 4 is padding
+
+# Combined with attention_mask:
+julia> attention_mask(mask)[:,:,1]
+2×4 Matrix{Float64}:
+  0.0    0.0   -Inf   -Inf
+  0.0    0.0    0.0   -Inf
+```
+
+# Usage with Causal Mask
+Padding and causal masks are often combined for batched autoregressive tasks:
+
+```julia
+seq_len = 5
+batch_lengths = [3, 4]
+
+# Create both masks
+causal = create_causal_mask(seq_len)                # Shape: (5, 5, 1)
+padding = create_padding_mask(batch_lengths, seq_len) # Shape: (2, 5, 1)
+
+# Combine masks which will either prevent attending to future tokens or padding tokens
+combined = causal .| padding
+final_mask = attention_mask(combined)
+
+# final_mask will prevent:
+# 1. Attending to future tokens (from causal mask)
+# 2. Attending to padding tokens (from padding mask)
+```
+"""
+function create_padding_mask(lengths::Vector{Int}, max_len::Int)
+    return reshape(.!(lengths' .>= (1:max_len)), :, max_len, length(lengths))
 end
 
 end
