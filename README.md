@@ -33,9 +33,10 @@ x_with_pos = pe(x)
 
 # Rotary Position Embeddings
 rope = RoPE(512, 1024)  # head_dim=512, max_length=1024
-x = randn(Float32, 512, 2, 100, 32)  # (head_dim, heads, seq_len, batch)
+x = randn(Float32, 512, 100, 2*32)  # (head_dim, seq_len, (nhead*batch_size))
 x_with_pos = rope(x)
 ```
+For a complete example of **RoPEMultiHeadAttention** implementation, please visit documentation. To keep dependencies minimal, trainable parameters must be specified.
 
 ## Contributing
 
