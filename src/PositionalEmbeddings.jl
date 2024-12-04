@@ -126,6 +126,17 @@ function neg_half(x::AbstractArray)
                 view(x, 1:d_2, :, :, ))
 end
 
+"""
+    (rope::RoPE)(x) -> AbstractArray
+
+Apply Rotary Position Embeddings to the input array `x` of shape `(head_size, seq_len, batch * num_heads)`.
+
+# Arguments
+- `x`: Input array where first dimension must match `rope.head_size` and second dimension must not exceed
+       the maximum cached sequence length.
+
+See also: [`RoPE`](@ref)
+"""
 function (rope::RoPE)(x::AbstractArray)
     head_size, seq_len, combined = size(x)
     @assert head_size == rope.head_size "Head dimension must match, expected $(rope.head_size), got $head_size"
