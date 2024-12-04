@@ -145,8 +145,12 @@ function (rope::RoPE)(x::AbstractArray)
     # Create negated version for rotation
     x_neg = neg_half(x)
 
+    # Use views to slice cached values up to seq_len
+    cos_cache = @view rope.cos_cached[:, 1:seq_len]
+    sin_cache = @view rope.sin_cached[:, 1:seq_len]
+
     # Broadcasting will naturally handle the combined dimension
-    x_rotated = @. x * rope.cos_cached + x_neg * rope.sin_cached
+    x_rotated = @. x * cos_cache + x_neg * sin_cache
 
     return x_rotated
 end
