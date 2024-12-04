@@ -179,7 +179,7 @@ julia> mask = create_causal_mask(3)[:,:,1]
  0  0  1  # Third position can attend to first and second
 ```
 """
-function causal_mask(seq_len::Int)
+function create_causal_mask(seq_len::Int)
     return reshape(triu(trues(seq_len, seq_len), 0), seq_len, seq_len, 1)
 end
 

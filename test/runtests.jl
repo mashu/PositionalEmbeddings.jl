@@ -234,3 +234,31 @@ end
         @test output[1:5, 1:5, 1] ≈ expected rtol=1e-5
     end
 end
+
+@testset "Mask Functions" begin
+    @testset "create_causal_mask" begin
+        # Test a simple 3x3 causal mask
+        result = create_causal_mask(3)
+        expected = reshape([
+            1 1 1
+            0 1 1
+            0 0 1
+        ], 3, 3, 1)
+        @test result == expected
+        @test size(result) == (3, 3, 1)
+    end
+
+    @testset "create_padding_mask" begin
+        # Test with sequences of different lengths
+        lengths = [2, 3, 1]
+        max_len = 4
+        result = create_padding_mask(lengths, max_len)
+        expected = reshape(permutedims([
+            0 0 1 1
+            0 0 0 1
+            0 1 1 1]
+            ,(2,1)),(1,4,3))
+        @test result == expected
+        @test size(result) == (1, 4, 3)
+    end
+end
