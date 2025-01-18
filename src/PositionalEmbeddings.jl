@@ -115,15 +115,15 @@ https://github.com/huggingface/transformers/issues/25199
 
 # Arguments
 - `x::AbstractArray`: Input array
-- `dim::Int=1`: Dimension along which to perform the operati    on
+- `dim::Int=1`: Dimension along which to perform the operation
 
 # Returns
 - Array with second half negated along specified dimension
 """
-function neg_half(x::AbstractArray)
-    d_2 = size(x, 1) ÷ 2
-    return vcat(-view(x, d_2+1:size(x, 1), :, :, ),
-                view(x, 1:d_2, :, :, ))
+function neg_half(x::AbstractArray, dim::Int=1)
+    d_2 = size(x, dim) ÷ 2
+    return vcat(-selectdim(x, dim, d_2+1:size(x, dim)),
+                selectdim(x, dim, 1:d_2))
 end
 
 """
