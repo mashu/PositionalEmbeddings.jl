@@ -139,6 +139,7 @@ end
         ], (16,10,1))
 
         @test isapprox(PositionalEmbeddings.neg_half(x), expected_neg_half)
+        @test isapprox(permutedims(PositionalEmbeddings.neg_half(permutedims(x, (2,1,3)), 2), (2,1,3)), expected_neg_half)
     end
 
     @testset "Forward Pass Test" begin
