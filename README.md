@@ -23,9 +23,15 @@ Pkg.add("PositionalEmbeddings")
 
 ## Quick Start
 
+Different positional embeddings expect different input tensor layouts:
+
+- **AbsolutePE** works with inputs of shape `(seq_len, channels, batch)`, adding position-specific values uniformly across channels and batches for each sequence position.
+
+- **RoPE** operates on inputs of shape `(head_dim, seq_len, nhead*batch)`, applying rotations between pairs of dimensions in `head_dim` independently for each sequence position, across heads and batches.
+
+Example:
 ```julia
 using PositionalEmbeddings
-
 # Absolute Positional Embeddings
 pe = AbsolutePE(512, 1024)  # embedding_size=512, max_length=1024
 x = randn(Float32, 100, 512, 32)  # (seq_len, channels, batch)
@@ -36,7 +42,8 @@ rope = RoPE(512, 1024)  # head_dim=512, max_length=1024
 x = randn(Float32, 512, 100, 2*32)  # (head_dim, seq_len, (nhead*batch_size))
 x_with_pos = rope(x)
 ```
-For a complete example of **RoPEMultiHeadAttention** implementation, please visit documentation. To keep dependencies minimal, trainable parameters must be specified.
+⚠️ For **RoPE** users must ensure that all precomputed matrices are not treated as trainable parameters.
+For example with `Optimisers.trainable(::RoPE) = (;)`
 
 ## Contributing
 
